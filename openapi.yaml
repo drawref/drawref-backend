@@ -182,14 +182,14 @@ paths:
       description: |
         Create an image.
 
-  /api/image/sources:
+  /api/images/sources:
     get:
       operationId: getImageSources
       summary: Get image sources.
       description: |
         Get image sources.
 
-  /api/image/unused:
+  /api/images/unused:
     delete:
       operationId: deleteUnusedImages
       summary: Delete unused images.
