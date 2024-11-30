@@ -1,3 +1,3 @@
 #!/usr/bin/env sh
-yarn migrate up
+yarn migrate
 yarn start
