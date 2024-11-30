@@ -6,7 +6,6 @@ dotenv.config();
 // serving ports and urls
 export const port = process.env.PORT || 3300;
 export const myURL = process.env.MY_BASEURL || "";
-export const hostBaseURL = process.env.HOST_BASEURL || "";
 export const frontendURL = process.env.FRONTEND_BASEURL || "";
 
 // db

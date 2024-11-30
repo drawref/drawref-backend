@@ -3,7 +3,7 @@ import cors from "cors";
 
 import { initialiseDatabase } from "./db/database.js";
 import { authenticate } from "./auth/bearerMiddleware.js";
-import { port, hostBaseURL, databaseUrl } from "./config/env.js";
+import { port, databaseUrl } from "./config/env.js";
 import { router as authRouter } from "./routes/auth.js";
 import { router as categoriesRouter } from "./routes/categories.js";
 import { router as imagesRouter } from "./routes/images.js";
@@ -43,5 +43,4 @@ app.use("/images", express.static("public"));
 
 app.listen(port, () => {
   console.log(`[server]: Server is running at http://localhost:${port}`);
-  console.log(`Serving images from: ${hostBaseURL}`);
 });
