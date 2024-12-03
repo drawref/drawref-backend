@@ -92,27 +92,33 @@ router.post("/local", needAdmin, async (req: Request, res: Response) => {
   const db = useDatabase();
 
   const newImportId = await db.addLocalImageImportPath(iPath, iCategory, iAuthor, iAuthorUrl, tags);
-  if (newImportId) {
-    console.log("IMPORTING FILES:", newImportId);
-  } else {
+  if (newImportId === undefined) {
     console.log("Skipping import, folder already exists for category");
+    res.status(400);
+    res.json({
+      error: `Folder already imported for this category.`,
+    });
+    return;
   }
 
-  //TODO: only do below if newImportId
+  // import images
   const files = await glob(join(iPath, "**/*"));
   const filenameList = files
     .filter((fn) => supportedLocalImageExtensions.includes(fn.toLowerCase().split(".").pop() || ""))
     .map((fn) => relative(localImagesRootPath, fn));
-  const images = await db.addLocalImages(filenameList, iAuthor, iAuthorUrl);
 
-  if (images !== undefined) {
-    await db.addImagesToCategory(iCategory, images, tags);
-  } else {
-    res.status(400);
-    res.json({
-      error: `No image IDs were returned.`,
-    });
-    return;
+  if (filenameList.length > 0) {
+    const images = await db.addLocalImages(filenameList, iAuthor, iAuthorUrl);
+
+    if (images !== undefined) {
+      await db.addImagesToCategory(iCategory, images, tags);
+    } else {
+      res.status(400);
+      res.json({
+        error: `No image IDs were returned.`,
+      });
+      return;
+    }
   }
 
   res.json({
