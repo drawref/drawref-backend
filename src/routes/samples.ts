@@ -37,7 +37,7 @@ router.post("/import", needAdmin, async (req: Request, res: Response) => {
     let cImage = -1;
     if (categoryData.cover) {
       const finalPath = `samples/covers/${categoryData.cover}`;
-      cImage = (await db.addImage(finalPath, "", "", "")) || cImage;
+      cImage = (await db.addImage(finalPath, "", "", "", false)) || cImage;
       await uploadFile(`./samples/covers/${categoryData.cover}`, finalPath);
     }
     const cId = await db.addCategory(categoryData.id, categoryData.name, cImage, categoryData.tags || []);
@@ -56,7 +56,7 @@ router.post("/import", needAdmin, async (req: Request, res: Response) => {
           for (const image of imageList.images) {
             const finalPath = `samples/${image.path}`;
             await uploadFile(`./samples/${image.path}`, finalPath);
-            const iId = await db.addImage(finalPath, "", imageProviderData.author, imageProviderData.author_url);
+            const iId = await db.addImage(finalPath, "", imageProviderData.author, imageProviderData.author_url, false);
             if (iId) {
               await db.addImageToCategory(cId, iId, parseSampleTags(image.tags || []));
             }
