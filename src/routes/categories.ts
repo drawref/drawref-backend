@@ -49,6 +49,7 @@ router.delete("/:category/images/:image", needAdmin, async (req: Request, res: R
 
 router.get("/:category/images", async (req: Request, res: Response) => {
   const category = req.params.category || "";
+  const page = parseInt(String(req.query.page) || "0");
 
   if (!category) {
     res.status(400);
@@ -60,8 +61,7 @@ router.get("/:category/images", async (req: Request, res: Response) => {
 
   const db = useDatabase();
 
-  //TODO: pull page number out from the query parameters
-  const images = await db.getCategoryImages(category, 0);
+  const images = await db.getCategoryImages(category, page);
 
   res.send(images);
 });

@@ -26,6 +26,13 @@ export type Image = {
   tags?: TagMap;
 };
 
+export type CategoryImagePage = {
+  images: Image[];
+  total_images: number;
+  page: number;
+  total_pages: number;
+};
+
 export type SampleProviderEntry = {
   author: string;
   author_url: string;

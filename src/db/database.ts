@@ -1,8 +1,10 @@
 import postgres from "postgres";
 
-import { Category, Image, LocalImageInfo, TagEntry, TagMap } from "../types/drawref.js";
+import { Category, CategoryImagePage, Image, LocalImageInfo, TagEntry, TagMap } from "../types/drawref.js";
 import urlJoin from "url-join";
 import { allowLocalImages, myURL, uploadUrlPrefix } from "../config/env.js";
+
+const defaultImagesPerPage = 20;
 
 function tagMapToDbTags(tags: TagMap): string[] {
   if (tags === undefined) {
@@ -389,16 +391,32 @@ class Database {
     }
   }
 
-  async getCategoryImages(category: string, page: number): Promise<Image[]> {
+  async getCategoryImages(category: string, page: number): Promise<CategoryImagePage> {
     var images: Image[] = [];
 
-    const rows = await this.sql`
+    // get all entries
+    let rows = await this.sql`
+      select count(*) as count
+      from images
+      inner join image_tags
+        on images.id = image_tags.image_id
+      where image_tags.category_id = ${category}
+    `;
+
+    const totalImages = rows[0].count;
+    // const startAtImage = Math.max(page, 0) * defaultImagesPerPage;
+    // const endAtImage = startAtImage + Math.min(defaultImagesPerPage, totalImages - startAtImage) - 1;
+
+    // get this page
+    rows = await this.sql`
       select image_id, path, external_url, author, author_url, is_local, image_tags.tags
       from images
       inner join image_tags
         on images.id = image_tags.image_id
       where image_tags.category_id = ${category}
       order by image_tags.created_at desc
+      limit ${defaultImagesPerPage}
+      offset ${defaultImagesPerPage * page}
     `;
     for (const row of rows) {
       var img: Image = {
@@ -413,7 +431,12 @@ class Database {
       images.push(img);
     }
 
-    return images;
+    return {
+      images,
+      total_images: totalImages,
+      page,
+      total_pages: Math.ceil(totalImages / defaultImagesPerPage),
+    };
   }
 
   async getSessionImages(category: string, tags: TagMap): Promise<Image[]> {
