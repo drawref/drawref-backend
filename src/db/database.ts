@@ -1,15 +1,27 @@
 import postgres from "postgres";
 
-import { Category, Image, TagEntry, TagMap } from "../types/drawref.js";
+import { Category, Image, LocalImageInfo, TagEntry, TagMap } from "../types/drawref.js";
 import urlJoin from "url-join";
-import { uploadUrlPrefix } from "../config/env.js";
+import { allowLocalImages, myURL, uploadUrlPrefix } from "../config/env.js";
 
 function tagMapToDbTags(tags: TagMap): string[] {
+  if (tags === undefined) {
+    return [];
+  }
+
   var tagsForDb: Array<string> = [];
   Object.entries(tags).forEach(([key, values]) => {
     tagsForDb = tagsForDb.concat(values.map((value) => `${key} ${value}`));
   });
   return tagsForDb;
+}
+
+function imageUrl(row: postgres.Row): string {
+  return row.is_local
+    ? urlJoin(myURL, "local/img", String(row.image_id))
+    : row.path
+      ? urlJoin(uploadUrlPrefix, row.path)
+      : row.external_url;
 }
 
 let db: Database;
@@ -117,15 +129,11 @@ class Database {
         cat.cover_id = row.cover_image;
         // load image data and apply to cat
         const ciRows = await this.sql`
-          select path, external_url
+          select path, external_url, is_local
           from images
           where id = ${row.cover_image}
         `;
-        if (ciRows[0].path) {
-          cat.cover = urlJoin(uploadUrlPrefix, ciRows[0].path);
-        } else if (ciRows[0].external_url) {
-          cat.cover = ciRows[0].external_url;
-        }
+        cat.cover = imageUrl(ciRows[0]);
       }
 
       categories.push(cat);
@@ -174,14 +182,123 @@ class Database {
   // Images
   //
 
-  async addImage(path: string, external_url: string, author: string, author_url: string): Promise<number | undefined> {
+  async getLocalImagePath(image: number): Promise<LocalImageInfo | undefined> {
+    if (!allowLocalImages) {
+      console.error("Can't get local image path, local images are disabled");
+      return;
+    }
+
+    try {
+      const rows = await this.sql`
+        select path, is_local
+        from images
+        where id = ${image}
+      `;
+
+      if (rows.length === 0 || !rows[0].is_local) {
+        return;
+      }
+
+      const li: LocalImageInfo = {
+        path: rows[0].path,
+      };
+      return li;
+    } catch (error) {
+      // error
+      console.error(error);
+    }
+    return;
+  }
+
+  async addImage(
+    path: string,
+    external_url: string,
+    author: string,
+    author_url: string,
+    is_local: boolean,
+  ): Promise<number | undefined> {
     var newId: number;
     try {
       const row = await this.sql`
         insert into images
-          (path, external_url, author, author_url)
+          (path, external_url, author, author_url, is_local)
         values
-          (${path}, ${external_url}, ${author}, ${author_url})
+          (${path}, ${external_url}, ${author}, ${author_url}, ${is_local})
+        returning id
+      `;
+      newId = row[0]?.id;
+    } catch (error) {
+      // error
+      console.error(error);
+      return;
+    }
+    return newId;
+  }
+
+  async addLocalImages(filenames: string[], author: string, author_url: string): Promise<number[] | undefined> {
+    const insertedRows = filenames.map((fn) => {
+      return {
+        path: fn,
+        author,
+        author_url,
+        is_local: true,
+      };
+    });
+    try {
+      const rows = await this.sql`
+        insert into images ${this.sql(insertedRows)}
+        returning id
+      `;
+
+      const ids: number[] = [];
+      for (const row of rows) {
+        ids.push(row.id);
+      }
+      return ids;
+    } catch (error) {
+      // error
+      console.error(error);
+    }
+
+    return;
+  }
+
+  async addLocalImageImportPath(
+    path: string,
+    category_id: string,
+    author: string,
+    author_url: string,
+    tags: TagMap,
+  ): Promise<number | undefined> {
+    //TODO: exit if path already exists in our db
+    var existingId: string = "";
+    try {
+      const row = await this.sql`
+        select id
+        from local_image_imports
+        where path=${path} and category_id=${category_id}
+      `;
+      existingId = row[0]?.id;
+    } catch (error) {
+      // error
+      console.error(error);
+    }
+
+    if (existingId) {
+      console.log("Local image import path already exists");
+      return;
+    }
+
+    // no existing entry for path found, adding new one
+    const tagsForDb = tagMapToDbTags(tags);
+
+    var newId: number;
+    try {
+      const row = await this.sql`
+        insert into local_image_imports
+          (path, category_id, author, author_url, tags)
+        values
+          (${path}, ${category_id}, ${author}, ${author_url}, ${tagsForDb})
         returning id
       `;
       newId = row[0]?.id;
@@ -237,6 +354,27 @@ class Database {
     }
   }
 
+  async addImagesToCategory(category: string, images: number[], tags: TagMap) {
+    const tagsForDb = tagMapToDbTags(tags);
+
+    const insertedRows = images.map((img) => {
+      return {
+        category_id: category,
+        image_id: img,
+        tags: tagsForDb,
+      };
+    });
+
+    try {
+      await this.sql`
+        insert into image_tags ${this.sql(insertedRows)}
+      `;
+    } catch (error) {
+      // error
+      console.error(error);
+    }
+  }
+
   async deleteImageFromCategory(category: string, image: number) {
     try {
       await this.sql`
@@ -255,7 +393,7 @@ class Database {
     var images: Image[] = [];
 
     const rows = await this.sql`
-      select image_id, path, external_url, author, author_url, image_tags.tags
+      select image_id, path, external_url, author, author_url, is_local, image_tags.tags
       from images
       inner join image_tags
         on images.id = image_tags.image_id
@@ -265,7 +403,7 @@ class Database {
     for (const row of rows) {
       var img: Image = {
         id: row.image_id,
-        path: row.path ? urlJoin(uploadUrlPrefix, row.path) : row.external_url,
+        path: imageUrl(row),
         author: row.author || "",
         author_url: row.author_url || "",
       };
@@ -286,7 +424,7 @@ class Database {
     var rows: postgres.RowList<postgres.Row[]>;
     if (tagsForDb.length === 0) {
       rows = await this.sql`
-        select image_id, path, external_url, author, author_url
+        select image_id, path, external_url, author, author_url, is_local
         from images
         inner join image_tags
           on images.id = image_tags.image_id
@@ -296,7 +434,7 @@ class Database {
       `;
     } else {
       rows = await this.sql`
-        select image_id, path, external_url, author, author_url
+        select image_id, path, external_url, author, author_url, is_local
         from images
         inner join image_tags
           on images.id = image_tags.image_id
@@ -309,7 +447,7 @@ class Database {
     for (const row of rows) {
       var img: Image = {
         id: row.image_id,
-        path: row.path ? urlJoin(uploadUrlPrefix, row.path) : row.external_url,
+        path: imageUrl(row),
         author: row.author || "",
         author_url: row.author_url || "",
       };

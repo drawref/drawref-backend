@@ -16,6 +16,16 @@ if (!process.env.DATABASE_URL) {
 }
 export const databaseUrl = process.env.DATABASE_URL;
 
+// local image uploads
+export const allowLocalImages = process.env.ALLOW_LOCAL_IMAGES === "true";
+export const localImagesRootPath = process.env.LOCAL_IMAGES_ROOT_PATH || "";
+
+if (allowLocalImages && localImagesRootPath === "") {
+  console.log("Local image root path must be defined in the LOCAL_IMAGES_ROOT_PATH environment variable.");
+  console.log("Closing server");
+  process.exit();
+}
+
 // image uploading
 export const uploadPathTmp = process.env.TMP_UPLOAD_PATH || "./tmp";
 export const uploadBucket = process.env.UPLOAD_S3_BUCKET;

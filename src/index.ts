@@ -7,6 +7,7 @@ import { port, databaseUrl } from "./config/env.js";
 import { router as authRouter } from "./routes/auth.js";
 import { router as categoriesRouter } from "./routes/categories.js";
 import { router as imagesRouter } from "./routes/images.js";
+import { router as localRouter } from "./routes/local.js";
 import { router as samplesRouter } from "./routes/samples.js";
 import { router as sessionRouter } from "./routes/session.js";
 import { router as rootRouter } from "./routes/root.js";
@@ -37,6 +38,8 @@ app.use("/api/samples", samplesRouter);
 app.use("/api/session", sessionRouter);
 app.use("/api/user", userRouter);
 app.use("/api", rootRouter);
+
+app.use("/local", localRouter);
 
 // intended mostly for dev testing
 app.use("/images", express.static("public"));

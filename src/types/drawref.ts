@@ -14,6 +14,10 @@ export type Category = {
   tags?: TagEntry[];
 };
 
+export type LocalImageInfo = {
+  path: string;
+};
+
 export type Image = {
   id: number;
   path: string;

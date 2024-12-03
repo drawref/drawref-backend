@@ -70,3 +70,5 @@ yarn start
 ## Licensing
 
 The software itself is distributed under the ISC license. The sample data (in the `/samples` folder) is distributed under different terms as described in [the LICENSE file](./LICENSE.md).
+
+We use some path functions from Backstage written by The Backstage Authors, licensed under the Apache License, Version 2.0. Check out [backstagePath.ts](./src/utilities/backstagePath.ts) for the full license informatino.
