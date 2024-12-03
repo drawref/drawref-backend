@@ -1,6 +1,6 @@
 {
   "name": "drawref-backend",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Backend for a drawing reference webapp.",
   "main": "index.js",
   "repository": "https://github.com/DanielOaks/drawref-backend",
