@@ -34,6 +34,7 @@ func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.E
 
 	// categories
 	router.GET("/api/categories", getCategories)
+	router.POST("/api/categories/reorder", AdminAuthMiddleware(), reorderCategories)
 	router.POST("/api/category", AdminAuthMiddleware(), createCategory)
 	router.GET("/api/category/:slug", getCategory)
 	router.PUT("/api/category/:slug", AdminAuthMiddleware(), editCategory)
@@ -46,6 +47,12 @@ func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.E
 	router.PUT("/api/source/:slug", AdminAuthMiddleware(), editSource)
 	router.DELETE("/api/source/:slug", AdminAuthMiddleware(), deleteSource)
 	router.POST("/api/source/:slug/scan", AdminAuthMiddleware(), scanSource)
+
+	// source metadata
+	router.GET("/api/source/:slug/path-metadata", AdminAuthMiddleware(), getSourcePathMetadata)
+	router.POST("/api/source/:slug/path-metadata", AdminAuthMiddleware(), upsertPathMetadata)
+	router.PUT("/api/source/:slug/path-metadata", AdminAuthMiddleware(), upsertPathMetadata)
+	router.DELETE("/api/source/:slug/path-metadata", AdminAuthMiddleware(), deletePathMetadata)
 
 	// images
 	router.GET("/api/image/:slug", getImage)

@@ -27,7 +27,7 @@ CREATE TABLE sources (
   last_scanned_at TIMESTAMPTZ
 );
 
-CREATE TABLE folder_metadata (
+CREATE TABLE path_metadata (
   id serial PRIMARY KEY,
   source_id integer REFERENCES sources(id) ON DELETE CASCADE,
   relative_path text NOT NULL, -- path inside root_path. there's always a relative_path of '' for the whole folder itself

@@ -2,8 +2,10 @@ package drawref
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -75,8 +77,300 @@ OFFSET $2
 
 // categories
 
-// sources
+func (db *DRDatabase) GetCategories() ([]Category, error) {
+	rows, err := db.pool.Query(context.Background(), `
+        SELECT id, display_name, cover_image, tags, position
+        FROM categories
+        ORDER BY position ASC, id DESC
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []Category
+	for rows.Next() {
+		var c Category
+		if err := rows.Scan(&c.ID, &c.DisplayName, &c.CoverImage, &c.Tags, &c.Position); err != nil {
+			return nil, err
+		}
+		categories = append(categories, c)
+	}
+	return categories, nil
+}
+
+func (db *DRDatabase) GetCategory(id string) (*Category, error) {
+	var c Category
+	err := db.pool.QueryRow(context.Background(), `
+        SELECT id, display_name, cover_image, tags, position
+        FROM categories
+        WHERE id = $1
+    `, id).Scan(&c.ID, &c.DisplayName, &c.CoverImage, &c.Tags, &c.Position)
+	return &c, err
+}
+
+func (db *DRDatabase) CreateCategory(c *Category) error {
+	_, err := db.pool.Exec(context.Background(), `
+        INSERT INTO categories (id, display_name, cover_image, tags, position)
+        VALUES ($1, $2, $3, $4, $5)
+    `, c.ID, c.DisplayName, c.CoverImage, c.Tags, c.Position)
+	return err
+}
+
+func (db *DRDatabase) UpdateCategory(id string, c *Category) error {
+	_, err := db.pool.Exec(context.Background(), `
+        UPDATE categories
+        SET display_name = $2, cover_image = $3, tags = $4, position = $5
+        WHERE id = $1
+    `, id, c.DisplayName, c.CoverImage, c.Tags, c.Position)
+	return err
+}
+
+func (db *DRDatabase) DeleteCategory(id string) error {
+	_, err := db.pool.Exec(context.Background(), `DELETE FROM categories WHERE id = $1`, id)
+	return err
+}
+
+func (db *DRDatabase) ReorderCategories(orderedIDs []string) error {
+	// array_position returns the 1-based index of the id in the array.
+	// if not found it returns NULL, which COALESCE turns to 900 to push unlisted categories to the bottom
+	_, err := db.pool.Exec(context.Background(), `
+        UPDATE categories 
+        SET position = COALESCE(array_position($1::text[], id), 900)
+    `, orderedIDs)
+
+	return err
+}
+
+// sources & metadata
+
+func (db *DRDatabase) GetSources() ([]Source, error) {
+	rows, err := db.pool.Query(context.Background(), `
+        SELECT id, name, source_type, root_path, enabled, last_scanned_at
+        FROM sources
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sources []Source
+	for rows.Next() {
+		var s Source
+		if err := rows.Scan(&s.ID, &s.Name, &s.SourceType, &s.RootPath, &s.Enabled, &s.LastScannedAt); err != nil {
+			return nil, err
+		}
+		sources = append(sources, s)
+	}
+	return sources, nil
+}
+
+func (db *DRDatabase) GetSource(id int) (*Source, error) {
+	var s Source
+	err := db.pool.QueryRow(context.Background(), `
+        SELECT id, name, source_type, root_path, enabled, last_scanned_at
+        FROM sources WHERE id = $1
+    `, id).Scan(&s.ID, &s.Name, &s.SourceType, &s.RootPath, &s.Enabled, &s.LastScannedAt)
+	return &s, err
+}
+
+func (db *DRDatabase) CreateSource(s *Source) error {
+	err := db.pool.QueryRow(context.Background(), `
+        INSERT INTO sources (name, source_type, root_path, enabled)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+    `, s.Name, s.SourceType, s.RootPath, s.Enabled).Scan(&s.ID)
+	return err
+}
+
+func (db *DRDatabase) UpdateSource(s *Source) error {
+	_, err := db.pool.Exec(context.Background(), `
+        UPDATE sources
+        SET name = $2, source_type = $3, root_path = $4, enabled = $5
+        WHERE id = $1
+    `, s.ID, s.Name, s.SourceType, s.RootPath, s.Enabled)
+	return err
+}
+
+func (db *DRDatabase) DeleteSource(id int) error {
+	_, err := db.pool.Exec(context.Background(), `DELETE FROM sources WHERE id = $1`, id)
+	return err
+}
+
+// returns all metadata path overrides for a given source
+func (db *DRDatabase) GetPathMetadataBySource(sourceID int) ([]PathMetadata, error) {
+	rows, err := db.pool.Query(context.Background(), `
+        SELECT id, source_id, relative_path, category_id, author, author_url, tags, tag_mode
+        FROM path_metadata
+        WHERE source_id = $1
+        ORDER BY relative_path ASC
+    `, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []PathMetadata
+	for rows.Next() {
+		var fm PathMetadata
+		if err := rows.Scan(&fm.ID, &fm.SourceID, &fm.RelativePath, &fm.CategoryID, &fm.Author, &fm.AuthorURL, &fm.Tags, &fm.TagMode); err != nil {
+			return nil, err
+		}
+		entries = append(entries, fm)
+	}
+	return entries, nil
+}
+
+// removes a metadata override and recalculates the effective metadata
+// for all images, so they fall back to inheriting from their parent folders
+func (db *DRDatabase) DeletePathMetadata(id int) error {
+	var sourceID int
+
+	err := db.pool.QueryRow(context.Background(), `
+        DELETE FROM path_metadata
+        WHERE id = $1
+        RETURNING source_id
+    `, id).Scan(&sourceID)
+
+	if err != nil {
+		return err
+	}
+
+	return db.RecalculateEffectiveMetadata(sourceID)
+}
+
+// updates directory tags and recalculates all image metadata in that source
+func (db *DRDatabase) UpsertPathMetadata(fm *PathMetadata) error {
+	_, err := db.pool.Exec(context.Background(), `
+        INSERT INTO path_metadata (source_id, relative_path, category_id, author, author_url, tags, tag_mode)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (source_id, relative_path)
+        DO UPDATE SET
+            category_id = EXCLUDED.category_id,
+            author = EXCLUDED.author,
+            author_url = EXCLUDED.author_url,
+            tags = EXCLUDED.tags,
+            tag_mode = EXCLUDED.tag_mode
+    `, fm.SourceID, fm.RelativePath, fm.CategoryID, fm.Author, fm.AuthorURL, string(fm.Tags), fm.TagMode)
+
+	if err != nil {
+		return err
+	}
+	return db.RecalculateEffectiveMetadata(fm.SourceID)
+}
+
+// for each image, finds the closest path_metadata tree and overrides,
+// then update the effective metadata as appropriate
+func (db *DRDatabase) RecalculateEffectiveMetadata(sourceID int) error {
+	query := `
+        WITH closest_paths AS (
+            SELECT 
+                i.id AS image_id,
+                (
+                    SELECT fm.id
+                    FROM path_metadata fm
+                    WHERE fm.source_id = i.source_id
+                      AND (fm.relative_path = '' OR i.relative_path LIKE (fm.relative_path || '/%') OR i.relative_path = fm.relative_path)
+                    ORDER BY LENGTH(fm.relative_path) DESC
+                    LIMIT 1
+                ) AS fm_id
+            FROM images i
+            WHERE i.source_id = $1
+        )
+        UPDATE images i
+        SET
+            effective_category_id = COALESCE(i.category_override, fm.category_id),
+            effective_author = COALESCE(i.author_override, fm.author),
+            effective_author_url = COALESCE(i.author_url_override, fm.author_url),
+            effective_tags = COALESCE(i.tags_override, fm.tags)
+        FROM closest_paths closest
+        JOIN path_metadata fm ON closest.fm_id = fm.id
+        WHERE i.id = closest.image_id
+    `
+	_, err := db.pool.Exec(context.Background(), query, sourceID)
+	return err
+}
 
 // images
 
+func (db *DRDatabase) GetImage(id int) (*Image, error) {
+	var i Image
+	err := db.pool.QueryRow(context.Background(), `
+        SELECT id, source_id, relative_path, local_path, external_url,
+               category_override, author_override, author_url_override, tags_override,
+               effective_category_id, effective_author, effective_author_url, effective_tags
+        FROM images WHERE id = $1
+    `, id).Scan(&i.ID, &i.SourceID, &i.RelativePath, &i.LocalPath, &i.ExternalURL,
+		&i.CategoryOverride, &i.AuthorOverride, &i.AuthorURLOverride, &i.TagsOverride,
+		&i.EffectiveCategoryID, &i.EffectiveAuthor, &i.EffectiveAuthorURL, &i.EffectiveTags)
+	return &i, err
+}
+
+func (db *DRDatabase) UpdateImage(i *Image) error {
+	_, err := db.pool.Exec(context.Background(), `
+        UPDATE images
+        SET category_override = $2, author_override = $3, author_url_override = $4, tags_override = $5, updated_at = NOW()
+        WHERE id = $1
+    `, i.ID, i.CategoryOverride, i.AuthorOverride, i.AuthorURLOverride, string(i.TagsOverride))
+
+	if err != nil {
+		return err
+	}
+	return db.RecalculateEffectiveMetadata(i.SourceID)
+}
+
+func (db *DRDatabase) DeleteImage(id int) error {
+	_, err := db.pool.Exec(context.Background(), `DELETE FROM images WHERE id = $1`, id)
+	return err
+}
+
 // drawing sessions
+
+func (db *DRDatabase) GetSessionImages(categoryID string, tags json.RawMessage, limit int) ([]Image, error) {
+	query := `
+        SELECT id, source_id, relative_path, local_path, external_url,
+               effective_category_id, effective_author, effective_author_url, effective_tags
+        FROM images
+        WHERE effective_category_id = $1
+    `
+	args := []interface{}{categoryID}
+
+	if len(tags) > 0 && string(tags) != "[]" && string(tags) != "{}" && string(tags) != "null" {
+		query += ` AND effective_tags @> $2::jsonb`
+		args = append(args, string(tags))
+	}
+
+	query += ` ORDER BY RANDOM() LIMIT $` + strconv.Itoa(len(args)+1)
+	args = append(args, limit)
+
+	rows, err := db.pool.Query(context.Background(), query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var images []Image
+	for rows.Next() {
+		var i Image
+		if err := rows.Scan(&i.ID, &i.SourceID, &i.RelativePath, &i.LocalPath, &i.ExternalURL,
+			&i.EffectiveCategoryID, &i.EffectiveAuthor, &i.EffectiveAuthorURL, &i.EffectiveTags); err != nil {
+			return nil, err
+		}
+		images = append(images, i)
+	}
+	return images, nil
+}
+
+func (db *DRDatabase) GetSessionImageCount(categoryID string, tags json.RawMessage) (int, error) {
+	query := `SELECT COUNT(*) FROM images WHERE effective_category_id = $1`
+	args := []interface{}{categoryID}
+
+	if len(tags) > 0 && string(tags) != "[]" && string(tags) != "{}" && string(tags) != "null" {
+		query += ` AND effective_tags @> $2::jsonb`
+		args = append(args, string(tags))
+	}
+
+	var count int
+	err := db.pool.QueryRow(context.Background(), query, args...).Scan(&count)
+	return count, err
+}
