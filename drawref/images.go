@@ -73,7 +73,7 @@ func updateImage(c *gin.Context) {
 	err = TheDb.UpdateImage(img)
 	if err != nil {
 		fmt.Println("Could not update image:", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Couldn't update image"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Couldn't update image", "details": err.Error()})
 		return
 	}
 
@@ -94,7 +94,7 @@ func deleteImage(c *gin.Context) {
 	err := TheDb.DeleteImage(req.ID)
 	if err != nil {
 		fmt.Println("Could not delete image:", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Couldn't delete image"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Couldn't delete image", "details": err.Error()})
 		return
 	}
 

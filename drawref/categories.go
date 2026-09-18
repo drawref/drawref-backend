@@ -93,7 +93,7 @@ func createCategory(c *gin.Context) {
 	err := TheDb.CreateCategory(newCategory)
 	if err != nil {
 		fmt.Println("Could not create category:", err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't create category. Maybe it already exists?"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't create category. Maybe it already exists?", "details": err.Error()})
 		return
 	}
 
@@ -131,7 +131,7 @@ func editCategory(c *gin.Context) {
 	err := TheDb.UpdateCategory(req.Slug, updateCategory)
 	if err != nil {
 		fmt.Println("Could not edit category:", err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't edit category"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't edit category", "details": err.Error()})
 		return
 	}
 
@@ -152,7 +152,7 @@ func deleteCategory(c *gin.Context) {
 	err := TheDb.DeleteCategory(req.Slug)
 	if err != nil {
 		fmt.Println("Could not delete category:", err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't delete category"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't delete category", "details": err.Error()})
 		return
 	}
 
@@ -173,7 +173,7 @@ func reorderCategories(c *gin.Context) {
 	err := TheDb.ReorderCategories(params.IDs)
 	if err != nil {
 		fmt.Println("Could not reorder categories:", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Couldn't reorder categories"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Couldn't reorder categories", "details": err.Error()})
 		return
 	}
 

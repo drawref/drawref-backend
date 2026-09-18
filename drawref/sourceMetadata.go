@@ -41,7 +41,7 @@ func getSourcePathMetadata(c *gin.Context) {
 	metadata, err := TheDb.GetPathMetadataBySource(req.SourceID)
 	if err != nil {
 		fmt.Println("Could not get source path metadata:", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not fetch path metadata"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not fetch path metadata", "details": err.Error()})
 		return
 	}
 
@@ -86,7 +86,7 @@ func upsertPathMetadata(c *gin.Context) {
 	err := TheDb.UpsertPathMetadata(fm)
 	if err != nil {
 		fmt.Println("Could not upsert path metadata:", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Couldn't save path metadata."})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Couldn't save path metadata", "details": err.Error()})
 		return
 	}
 
@@ -114,7 +114,7 @@ func deletePathMetadata(c *gin.Context) {
 	err := TheDb.DeletePathMetadata(params.ID)
 	if err != nil {
 		fmt.Println("Could not delete path metadata:", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Couldn't delete path metadata"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Couldn't delete path metadata", "details": err.Error()})
 		return
 	}
 
