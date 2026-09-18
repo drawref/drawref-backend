@@ -19,7 +19,7 @@ type DrawRefAuth struct {
 
 var TheAuth *DrawRefAuth
 
-func SetupAuth(pasetoKeyHex string, adminPass, superuserPass string) error {
+func SetupAuth(pasetoKeyHex string, adminPass string) error {
 	key, err := paseto.V4SymmetricKeyFromHex(pasetoKeyHex)
 	if err != nil {
 		return err

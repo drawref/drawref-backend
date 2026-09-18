@@ -17,10 +17,10 @@ func main() {
 		log.Fatal("LoadConfig failed:", err)
 	}
 
-	// setup s3
-	err = drawref.OpenS3(config.UploadS3Bucket, config.UploadS3KeyPrefix, config.UploadS3URLPrefix)
+	// setup auth
+	err = drawref.SetupAuth(config.PasetoKey, config.AdminPass)
 	if err != nil {
-		log.Fatal("OpenS3 failed:", err)
+		log.Fatal("SetupAuth failed:", err)
 	}
 
 	// upgrading db
