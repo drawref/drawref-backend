@@ -27,25 +27,23 @@ func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.E
 
 	// API
 	router.GET("/api/ping", ping)
-	// router.POST("/api/auth", login)
+	router.POST("/api/auth", login)
 
-	// // DB
-	// router.GET("/api/dbs", getYpsDbs)
-	// router.GET("/api/db", getLatestYpsDb)
-	// router.PUT("/api/db", AdminAuthMiddleware(), updateYpsDb)
-	// router.DELETE("/api/db/:slug", AdminAuthMiddleware(), deleteYpsDb)
+	// logs
+	router.GET("/api/logs", AdminAuthMiddleware(), getLogs)
 
-	// // pages
-	// router.GET("/api/page/:slug", getPage)
-	// router.PUT("/api/page/:slug", AdminAuthMiddleware(), editPage)
+	// sources
+	router.GET("/api/sources", AdminAuthMiddleware(), getSources)
+	router.POST("/api/source", AdminAuthMiddleware(), createSource)
+	router.GET("/api/source/:slug", AdminAuthMiddleware(), getSource)
+	router.PUT("/api/source/:slug", AdminAuthMiddleware(), editSource)
+	router.DELETE("/api/source/:slug", AdminAuthMiddleware(), deleteSource)
+	router.POST("/api/source/:slug/scan", AdminAuthMiddleware(), scanSource)
 
-	// // entries
-	// router.GET("/api/entry/:slug", getEntry)
-	// router.POST("/api/entry/:slug/file", AdminAuthMiddleware(), uploadEntryFile)
-	// router.DELETE("/api/entry/:slug/file", AdminAuthMiddleware(), deleteEntryFile)
-	// router.GET("/api/browseby", getBrowseByFields)
-	// router.GET("/api/search", searchEntries)
-	// router.PUT("/api/import-files", AdminAuthMiddleware(), importFileList)
+	// images
+	router.GET("/api/image/:slug", getImage)
+	router.PUT("/api/image/:slug", AdminAuthMiddleware(), updateImage)
+	router.DELETE("/api/image/:slug", AdminAuthMiddleware(), deleteImage)
 
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Page not found."})
