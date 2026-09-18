@@ -197,6 +197,54 @@ func (db *DRDatabase) DeleteSource(id int) error {
 	return err
 }
 
+func (db *DRDatabase) SyncScannedImages(sourceID int, currentPaths []string) error {
+	tx, err := db.pool.Begin(context.Background())
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+
+	if len(currentPaths) > 0 {
+		// insert any new images that don't exist yet
+		_, err = tx.Exec(context.Background(), `
+            INSERT INTO images (source_id, relative_path)
+            SELECT $1, t
+            FROM unnest($2::text[]) AS t
+            ON CONFLICT (source_id, relative_path) DO NOTHING
+        `, sourceID, currentPaths)
+		if err != nil {
+			return err
+		}
+
+		// delete any images that no longer exist on disk
+		_, err = tx.Exec(context.Background(), `
+            DELETE FROM images
+            WHERE source_id = $1 AND relative_path != ALL($2::text[])
+        `, sourceID, currentPaths)
+		if err != nil {
+			return err
+		}
+	} else {
+		// if no valid images were found, wipe everything for this source
+		_, err = tx.Exec(context.Background(), `
+            DELETE FROM images WHERE source_id = $1
+        `, sourceID)
+		if err != nil {
+			return err
+		}
+	}
+
+	// update the last scanned timestamp
+	_, err = tx.Exec(context.Background(), `
+        UPDATE sources SET last_scanned_at = NOW() WHERE id = $1
+    `, sourceID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(context.Background())
+}
+
 // returns all metadata path overrides for a given source
 func (db *DRDatabase) GetPathMetadataBySource(sourceID int) ([]PathMetadata, error) {
 	rows, err := db.pool.Query(context.Background(), `

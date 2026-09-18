@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/drawref/drawref-backend/drawref/sources"
 	"github.com/gin-gonic/gin"
 )
 
@@ -80,7 +81,7 @@ func createSource(c *gin.Context) {
 	err := TheDb.CreateSource(newSource)
 	if err != nil {
 		fmt.Println("Could not create source:", err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't create source. Maybe one already exists for this type and root path?"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't create source. Maybe one already exists for this type and root path?", "details": err.Error()})
 		return
 	}
 
@@ -116,7 +117,7 @@ func editSource(c *gin.Context) {
 	err := TheDb.UpdateSource(updateSource)
 	if err != nil {
 		fmt.Println("Could not edit source:", err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't edit source."})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't edit source", "details": err.Error()})
 		return
 	}
 
@@ -137,7 +138,7 @@ func deleteSource(c *gin.Context) {
 	err := TheDb.DeleteSource(req.ID)
 	if err != nil {
 		fmt.Println("Could not delete source:", err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't delete source"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't delete source", "details": err.Error()})
 		return
 	}
 
@@ -155,19 +156,20 @@ func scanSource(c *gin.Context) {
 		return
 	}
 
-	//TODO: implement scanning logic. lookup source, traverse filesystem, insert
-	// missing images, then call RecalculateEffectiveMetadata.
-	// for now, we fake it.
+	source, err := TheDb.GetSource(req.ID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Source not found"})
+		return
+	}
 
 	TheDb.AddLogLine(LogLevelInfo, "scan_source", fmt.Sprintf("Triggered scan for source %d", req.ID), map[string]interface{}{
 		"id": req.ID,
 	})
 
-	// To fully simulate the scan finish, we'll manually hit the metadata recalculator for now
-	err := TheDb.RecalculateEffectiveMetadata(req.ID)
+	err = sources.ScanLocalSource(c.Request.Context(), source.ID, source.RootPath, TheDb)
 	if err != nil {
-		fmt.Println("Could not recalculate metadata during mock scan:", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not process metadata for source"})
+		fmt.Println("Could not process scan:", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not process scan for source", "details": err.Error()})
 		return
 	}
 
