@@ -360,7 +360,7 @@ func (db *DRDatabase) RecalculateEffectiveMetadata(sourceID int) error {
                     SELECT fm.id
                     FROM path_metadata fm
                     WHERE fm.source_id = i.source_id
-                      AND (fm.relative_path = '' OR i.relative_path LIKE (fm.relative_path || '/%') OR i.relative_path = fm.relative_path)
+                      AND (fm.relative_path = '' OR i.relative_path LIKE (RTRIM(fm.relative_path, '/') || '/%') OR i.relative_path = fm.relative_path)
                     ORDER BY LENGTH(fm.relative_path) DESC
                     LIMIT 1
                 ) AS fm_id
