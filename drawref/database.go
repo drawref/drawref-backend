@@ -142,6 +142,48 @@ func (db *DRDatabase) ReorderCategories(orderedIDs []string) error {
 	return err
 }
 
+func (db *DRDatabase) GetCategoryImages(categoryID string, limit, offset int) ([]Image, int, error) {
+	var totalCount int
+	err := db.pool.QueryRow(context.Background(), `
+        SELECT COUNT(*)
+        FROM images
+        WHERE effective_category_id = $1
+    `, categoryID).Scan(&totalCount)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	query := `
+        SELECT id, source_id, relative_path, local_path, external_url,
+               category_override, author_override, author_url_override, tags_override,
+               effective_category_id, effective_author, effective_author_url, effective_tags
+        FROM images
+        WHERE effective_category_id = $1
+        ORDER BY id
+        LIMIT $2 OFFSET $3
+    `
+
+	rows, err := db.pool.Query(context.Background(), query, categoryID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var images []Image
+	for rows.Next() {
+		var i Image
+		if err := rows.Scan(&i.ID, &i.SourceID, &i.RelativePath, &i.LocalPath, &i.ExternalURL,
+			&i.CategoryOverride, &i.AuthorOverride, &i.AuthorURLOverride, &i.TagsOverride,
+			&i.EffectiveCategoryID, &i.EffectiveAuthor, &i.EffectiveAuthorURL, &i.EffectiveTags); err != nil {
+			return nil, 0, err
+		}
+		images = append(images, i)
+	}
+
+	return images, totalCount, nil
+}
+
 // sources & metadata
 
 func (db *DRDatabase) GetSources() ([]Source, error) {

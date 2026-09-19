@@ -45,6 +45,7 @@ func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.E
 	router.GET("/api/category/:slug", getCategory)
 	router.PUT("/api/category/:slug", AdminAuthMiddleware(), editCategory)
 	router.DELETE("/api/category/:slug", AdminAuthMiddleware(), deleteCategory)
+	router.GET("/api/category/:slug/images", getCategoryImages)
 
 	// sources
 	router.GET("/api/sources", AdminAuthMiddleware(), getSources)

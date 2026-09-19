@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -182,4 +183,40 @@ func reorderCategories(c *gin.Context) {
 	})
 
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func getCategoryImages(c *gin.Context) {
+	var req CategoryRequest
+	if err := c.ShouldBindUri(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Category slug must be provided"})
+		return
+	}
+
+	pageStr := c.DefaultQuery("page", "0")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 0 {
+		page = 0
+	}
+
+	limit := 50
+	offset := page * limit
+
+	images, totalCount, err := TheDb.GetCategoryImages(req.Slug, limit, offset)
+	if err != nil {
+		fmt.Println("Could not get category images:", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not fetch category images"})
+		return
+	}
+
+	if images == nil {
+		images = []Image{}
+	}
+
+	totalPages := (totalCount + limit - 1) / limit
+
+	c.JSON(http.StatusOK, gin.H{
+		"images":       images,
+		"total_images": totalCount,
+		"total_pages":  totalPages,
+	})
 }
