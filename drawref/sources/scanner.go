@@ -119,3 +119,42 @@ func ScanLocalSource(ctx context.Context, sourceID int, rootPath string, db Scan
 
 	return nil
 }
+
+func ScanFSSource(ctx context.Context, sourceID int, fsys fs.FS, rootDir string, db ScannerDB) error {
+	var currentPaths []string
+
+	err := fs.WalkDir(fsys, rootDir, func(path string, d fs.DirEntry, err error) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if err != nil || d.IsDir() {
+			return err
+		}
+
+		ext := strings.ToLower(filepath.Ext(path))
+		if validExtensions[ext] {
+			// strip the rootDir prefix (e.g., "sample-images/") to get the relative path for the DB
+			rel := strings.TrimPrefix(path, rootDir+"/")
+			rel = filepath.ToSlash(rel) // fs paths are already forward slashes, but good for safety
+			currentPaths = append(currentPaths, rel)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if err := db.SyncScannedImages(sourceID, currentPaths); err != nil {
+		return err
+	}
+
+	if err := db.RecalculateEffectiveMetadata(sourceID); err != nil {
+		return err
+	}
+
+	return nil
+}

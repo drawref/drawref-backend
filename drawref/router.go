@@ -38,6 +38,9 @@ func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.E
 	// system
 	router.GET("/api/system/directories", AdminAuthMiddleware(), autocompleteDirectory)
 
+	// samples
+	router.POST("/api/system/load-samples", AdminAuthMiddleware(), loadSamples)
+
 	// categories
 	router.GET("/api/categories", getCategories)
 	router.POST("/api/categories/reorder", AdminAuthMiddleware(), reorderCategories)

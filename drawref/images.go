@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -49,6 +50,13 @@ func serveImage(c *gin.Context) {
 		fullPath := filepath.Join(source.RootPath, img.RelativePath)
 		// c.File automatically handles setting the correct Content-Type
 		c.File(fullPath)
+		return
+	}
+
+	if source.SourceType == "samples" {
+		// embed.FS strictly requires forward slashes (so we use path.Join, not filepath.Join)
+		fullPath := path.Join("sample-images", img.RelativePath)
+		c.FileFromFS(fullPath, http.FS(SamplesFS))
 		return
 	}
 

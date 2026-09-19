@@ -38,6 +38,8 @@ func (db *DRDatabase) Close() {
 // log lines
 
 func (db *DRDatabase) AddLogLine(logLevel LogLevel, eventType string, message string, data interface{}) error {
+	fmt.Println("Log:", logLevel, eventType, message, data)
+
 	_, err := db.pool.Exec(context.Background(), `
 insert into logs (log_level, event_type, message, extra_data)
 values ($1, $2, $3, $4)
@@ -247,12 +249,32 @@ func (db *DRDatabase) GetSource(id int) (*Source, error) {
 }
 
 func (db *DRDatabase) CreateSource(s *Source) error {
-	err := db.pool.QueryRow(context.Background(), `
+	tx, err := db.pool.Begin(context.Background())
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+
+	// insert the source and get its id
+	err = tx.QueryRow(context.Background(), `
         INSERT INTO sources (name, source_type, root_path, enabled)
         VALUES ($1, $2, $3, $4)
         RETURNING id
     `, s.Name, s.SourceType, s.RootPath, s.Enabled).Scan(&s.ID)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// insert an empty root path_metadata entry for this source
+	_, err = tx.Exec(context.Background(), `
+        INSERT INTO path_metadata (source_id, relative_path, tags, tag_mode)
+        VALUES ($1, '', '{}', 'merge')
+    `, s.ID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(context.Background())
 }
 
 func (db *DRDatabase) UpdateSource(s *Source) error {
@@ -342,15 +364,30 @@ func (db *DRDatabase) GetPathMetadataBySource(sourceID int) ([]PathMetadata, err
 }
 
 // removes a metadata override and recalculates the effective metadata
-// for all images, so they fall back to inheriting from their parent folders
+// for all images, so they fall back to inheriting from their parent folders.
+// prevents deleting the root (”) path metadata since it's required for cascades
 func (db *DRDatabase) DeletePathMetadata(id int) error {
 	var sourceID int
+	var relativePath string
 
 	err := db.pool.QueryRow(context.Background(), `
+        SELECT source_id, relative_path
+        FROM path_metadata
+        WHERE id = $1
+    `, id).Scan(&sourceID, &relativePath)
+
+	if err != nil {
+		return err
+	}
+
+	if relativePath == "" {
+		return fmt.Errorf("cannot delete the root path metadata for a source")
+	}
+
+	_, err = db.pool.Exec(context.Background(), `
         DELETE FROM path_metadata
         WHERE id = $1
-        RETURNING source_id
-    `, id).Scan(&sourceID)
+    `, id)
 
 	if err != nil {
 		return err

@@ -166,7 +166,15 @@ func scanSource(c *gin.Context) {
 		"id": req.ID,
 	})
 
-	err = sources.ScanLocalSource(c.Request.Context(), source.ID, source.RootPath, TheDb)
+	switch source.SourceType {
+	case "samples":
+		err = sources.ScanFSSource(c.Request.Context(), source.ID, SamplesFS, "sample-images", TheDb)
+	case "local":
+		err = sources.ScanLocalSource(c.Request.Context(), source.ID, source.RootPath, TheDb)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Scanning not supported for this source type"})
+		return
+	}
 	if err != nil {
 		fmt.Println("Could not process scan:", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not process scan for source", "details": err.Error()})
