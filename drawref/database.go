@@ -142,6 +142,36 @@ func (db *DRDatabase) ReorderCategories(orderedIDs []string) error {
 	return err
 }
 
+func (db *DRDatabase) GetImageAuthors() ([][]string, error) {
+	rows, err := db.pool.Query(context.Background(), `
+        SELECT DISTINCT effective_author, effective_author_url
+        FROM images
+        WHERE effective_author IS NOT NULL AND effective_author != ''
+        ORDER BY effective_author ASC
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var authors [][]string
+	for rows.Next() {
+		var author string
+		var url *string
+		if err := rows.Scan(&author, &url); err != nil {
+			return nil, err
+		}
+
+		urlStr := ""
+		if url != nil {
+			urlStr = *url
+		}
+		authors = append(authors, []string{author, urlStr})
+	}
+
+	return authors, nil
+}
+
 func (db *DRDatabase) GetCategoryImages(categoryID string, limit, offset int) ([]Image, int, error) {
 	var totalCount int
 	err := db.pool.QueryRow(context.Background(), `

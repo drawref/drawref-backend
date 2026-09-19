@@ -63,6 +63,7 @@ func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.E
 	router.DELETE("/api/source/:slug/path-metadata", AdminAuthMiddleware(), deletePathMetadata)
 
 	// images
+	router.GET("/api/authors", getImageAuthors)
 	router.GET("/api/image/:id", getImage)
 	router.PUT("/api/image/:id", AdminAuthMiddleware(), updateImage)
 	router.DELETE("/api/image/:id", AdminAuthMiddleware(), deleteImage)

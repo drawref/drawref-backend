@@ -139,3 +139,18 @@ func deleteImage(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
+
+func getImageAuthors(c *gin.Context) {
+	authors, err := TheDb.GetImageAuthors()
+	if err != nil {
+		fmt.Println("Could not fetch image authors:", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not fetch authors"})
+		return
+	}
+
+	if authors == nil {
+		authors = [][]string{}
+	}
+
+	c.JSON(http.StatusOK, authors)
+}
