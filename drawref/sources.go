@@ -175,3 +175,29 @@ func scanSource(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Source scan triggered"})
 }
+
+func getSourceDirectories(c *gin.Context) {
+	var req SourceRequest
+	if err := c.ShouldBindUri(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Valid Source ID must be provided"})
+		return
+	}
+
+	source, err := TheDb.GetSource(req.ID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Source not found"})
+		return
+	}
+
+	pathQuery := c.Query("path")
+
+	// Get directories within this source
+	dirs, err := sources.GetDirectories(c.Request.Context(), source.SourceType, source.RootPath, pathQuery)
+	if err != nil {
+		fmt.Println("Could not get directories:", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not fetch directories", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, dirs)
+}

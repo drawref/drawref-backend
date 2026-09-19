@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -20,6 +21,52 @@ var validExtensions = map[string]bool{
 	".jpg":  true,
 	".jpeg": true,
 	".webp": true,
+}
+
+func GetDirectories(ctx context.Context, sourceType string, rootPath string, pathPrefix string) ([]string, error) {
+	if sourceType != "local" {
+		return []string{}, nil // only local supported for now
+	}
+
+	// normalize pathPrefix to local OS format
+	localPrefix := filepath.FromSlash(pathPrefix)
+
+	// determine actual directory to read and prefix to match
+	var searchDir string
+	var matchPrefix string
+
+	if localPrefix == "" || strings.HasSuffix(pathPrefix, "/") {
+		searchDir = filepath.Join(rootPath, localPrefix)
+		matchPrefix = ""
+	} else {
+		searchDir = filepath.Join(rootPath, filepath.Dir(localPrefix))
+		matchPrefix = filepath.Base(localPrefix)
+	}
+
+	entries, err := os.ReadDir(searchDir)
+	if err != nil {
+		// if directory doesn't exist or isn't accessible, just return empty
+		return []string{}, nil
+	}
+
+	var suggestions []string
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(strings.ToLower(entry.Name()), strings.ToLower(matchPrefix)) {
+			// construct the relative path to return
+			relPath := ""
+			if localPrefix == "" || strings.HasSuffix(pathPrefix, "/") {
+				relPath = filepath.Join(localPrefix, entry.Name())
+			} else {
+				relPath = filepath.Join(filepath.Dir(localPrefix), entry.Name())
+			}
+
+			// add a trailing slash to indicate it's a directory
+			relPath = filepath.ToSlash(relPath) + "/"
+			suggestions = append(suggestions, relPath)
+		}
+	}
+
+	return suggestions, nil
 }
 
 func ScanLocalSource(ctx context.Context, sourceID int, rootPath string, db ScannerDB) error {
