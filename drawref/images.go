@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,6 +25,40 @@ type UpdateImageParams struct {
 }
 
 // handlers
+
+func serveImage(c *gin.Context) {
+	var req ImageRequest
+	if err := c.ShouldBindUri(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Valid Image ID must be provided"})
+		return
+	}
+
+	img, err := TheDb.GetImage(req.ID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Image not found"})
+		return
+	}
+
+	source, err := TheDb.GetSource(img.SourceID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not fetch image source"})
+		return
+	}
+
+	if source.SourceType == "local" {
+		fullPath := filepath.Join(source.RootPath, img.RelativePath)
+		// c.File automatically handles setting the correct Content-Type
+		c.File(fullPath)
+		return
+	}
+
+	if source.SourceType == "s3" {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "S3 serving not implemented or URL is missing"})
+		return
+	}
+
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "Unknown source type"})
+}
 
 func getImage(c *gin.Context) {
 	var req ImageRequest

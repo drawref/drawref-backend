@@ -29,6 +29,9 @@ func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.E
 	router.GET("/api/ping", ping)
 	router.POST("/api/auth", login)
 
+	// serve local images
+	router.GET("/image/:id", serveImage)
+
 	// logs
 	router.GET("/api/logs", AdminAuthMiddleware(), getLogs)
 
@@ -59,9 +62,9 @@ func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.E
 	router.DELETE("/api/source/:slug/path-metadata", AdminAuthMiddleware(), deletePathMetadata)
 
 	// images
-	router.GET("/api/image/:slug", getImage)
-	router.PUT("/api/image/:slug", AdminAuthMiddleware(), updateImage)
-	router.DELETE("/api/image/:slug", AdminAuthMiddleware(), deleteImage)
+	router.GET("/api/image/:id", getImage)
+	router.PUT("/api/image/:id", AdminAuthMiddleware(), updateImage)
+	router.DELETE("/api/image/:id", AdminAuthMiddleware(), deleteImage)
 
 	// drawing sessions
 	router.GET("/api/session", getSession)
