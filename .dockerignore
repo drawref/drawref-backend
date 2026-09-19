@@ -1,0 +1,17 @@
+# Git & CI workflows
+.git
+.github
+
+# Local environment & secrets
+.env
+.env.*
+
+# Local compiled binaries
+*.exe
+drawref-backend
+
+# Editor / OS metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

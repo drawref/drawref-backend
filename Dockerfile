@@ -1,33 +1,43 @@
 ## build drawref binary
-FROM docker.io/golang:1.23-alpine AS build-env
+FROM --platform=$BUILDPLATFORM docker.io/golang:1.23-alpine AS build-env
 
-RUN apk upgrade -U --force-refresh --no-cache && apk add --no-cache --purge --clean-protected -l -u make git
-
-# copy drawref source
 WORKDIR /go/src/github.com/drawref/drawref-backend
+
+# cache dependencies (invalidated only when go.mod/go.sum change)
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+# 2. Copy source code
 COPY . .
 
-# compile
-RUN make install
+# compile natively for the target platform using Go cross-compilation
+ARG TARGETOS
+ARG TARGETARCH
+ARG GIT_COMMIT=""
+ARG GIT_TAG=""
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -v \
+    -ldflags "-X main.commit=${GIT_COMMIT} -X main.version=${GIT_TAG}" \
+    -o /go/bin/drawref-backend .
 
 ## build drawref container
 FROM docker.io/alpine:3.19
 
-# metadata
 LABEL maintainer="Daniel Oaks <daniel@danieloaks.net>" \
       description="Drawref is a webapp that holds and presents images for drawing reference"
 
-# standard port listened on
 EXPOSE 8465/tcp
 
-# drawref itself
 COPY --from=build-env /go/bin/drawref-backend \
                       /go/src/github.com/drawref/drawref-backend/distrib/docker/run.sh \
                       /drawref-bin/
 COPY --from=build-env /go/src/github.com/drawref/drawref-backend/migrations \
                       /drawref-bin/migrations
 
-# launch
 ENTRYPOINT ["/drawref-bin/run.sh"]
 
 # # uncomment to debug
