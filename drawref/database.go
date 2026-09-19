@@ -556,3 +556,32 @@ func (db *DRDatabase) GetSessionImageCount(categoryID string, tags json.RawMessa
 	err := db.pool.QueryRow(context.Background(), query, args...).Scan(&count)
 	return count, err
 }
+
+func (db *DRDatabase) GetImagesBySourcePath(sourceID int, pathPrefix string, limit int) ([]Image, error) {
+	query := `
+        SELECT id, source_id, relative_path, local_path, external_url,
+               category_override, author_override, author_url_override, tags_override, effective_category_id,
+               effective_author, effective_author_url, effective_tags
+        FROM images
+        WHERE source_id = $1 AND relative_path LIKE $2
+        LIMIT $3
+    `
+	rows, err := db.pool.Query(context.Background(), query, sourceID, pathPrefix+"%", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var images []Image
+	for rows.Next() {
+		var i Image
+		if err := rows.Scan(&i.ID, &i.SourceID, &i.RelativePath, &i.LocalPath, &i.ExternalURL,
+			&i.CategoryOverride, &i.AuthorOverride, &i.AuthorURLOverride, &i.TagsOverride, &i.EffectiveCategoryID,
+			&i.EffectiveAuthor, &i.EffectiveAuthorURL, &i.EffectiveTags); err != nil {
+			return nil, err
+		}
+		images = append(images, i)
+	}
+
+	return images, nil
+}

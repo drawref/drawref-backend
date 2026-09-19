@@ -6,6 +6,7 @@ import (
 
 	"github.com/drawref/drawref-backend/drawref/sources"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/net/context"
 )
 
 // uri params
@@ -90,6 +91,18 @@ func createSource(c *gin.Context) {
 		"root_path": newSource.RootPath,
 	})
 
+	// trigger initial background scan
+	if newSource.Enabled {
+		go func(s *Source) {
+			switch s.SourceType {
+			case "samples":
+				sources.ScanFSSource(context.Background(), s.ID, SamplesFS, "sample-images", TheDb)
+			case "local":
+				sources.ScanLocalSource(context.Background(), s.ID, s.RootPath, TheDb)
+			}
+		}(newSource)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"id": newSource.ID})
 }
 
@@ -119,6 +132,18 @@ func editSource(c *gin.Context) {
 		fmt.Println("Could not edit source:", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't edit source", "details": err.Error()})
 		return
+	}
+
+	// trigger background scan since the root path or other metadata may have changed
+	if updateSource.Enabled {
+		go func(s *Source) {
+			switch s.SourceType {
+			case "samples":
+				sources.ScanFSSource(context.Background(), s.ID, SamplesFS, "sample-images", TheDb)
+			case "local":
+				sources.ScanLocalSource(context.Background(), s.ID, s.RootPath, TheDb)
+			}
+		}(updateSource)
 	}
 
 	TheDb.AddLogLine(LogLevelInfo, "edit_source", fmt.Sprintf("Updated source %d", req.ID), map[string]interface{}{
@@ -207,5 +232,19 @@ func getSourceDirectories(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dirs)
+	// get a sample of images underneath this folder
+	images, err := TheDb.GetImagesBySourcePath(source.ID, pathQuery, 50)
+	if err != nil {
+		fmt.Println("Could not get sample images:", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not fetch sample images", "details": err.Error()})
+		return
+	}
+	if images == nil {
+		images = []Image{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"directories": dirs,
+		"images":      images,
+	})
 }
