@@ -287,8 +287,33 @@ func (db *DRDatabase) UpdateSource(s *Source) error {
 }
 
 func (db *DRDatabase) DeleteSource(id int) error {
-	_, err := db.pool.Exec(context.Background(), `DELETE FROM sources WHERE id = $1`, id)
-	return err
+	tx, err := db.pool.Begin(context.Background())
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+
+	// reset any category covers that rely on images from this source
+	_, err = tx.Exec(context.Background(), `
+        UPDATE categories
+        SET cover_image = -1
+        WHERE cover_image IN (
+            SELECT id FROM images WHERE source_id = $1
+        )
+    `, id)
+	if err != nil {
+		return err
+	}
+
+	// delete the source (which cascades and deletes the images / path_metadata)
+	_, err = tx.Exec(context.Background(), `
+        DELETE FROM sources WHERE id = $1
+    `, id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(context.Background())
 }
 
 func (db *DRDatabase) SyncScannedImages(sourceID int, currentPaths []string) error {
