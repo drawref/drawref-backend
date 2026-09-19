@@ -445,9 +445,36 @@ func (db *DRDatabase) UpsertPathMetadata(fm *PathMetadata) error {
 // then update the effective metadata as appropriate
 func (db *DRDatabase) RecalculateEffectiveMetadata(sourceID int) error {
 	query := `
-        WITH closest_paths AS (
+        WITH closest_rules AS (
             SELECT 
                 i.id AS image_id,
+                (
+                    SELECT fm.category_id
+                    FROM path_metadata fm
+                    WHERE fm.source_id = i.source_id
+                      AND fm.category_id IS NOT NULL
+                      AND (fm.relative_path = '' OR i.relative_path LIKE (RTRIM(fm.relative_path, '/') || '/%') OR i.relative_path = fm.relative_path)
+                    ORDER BY LENGTH(fm.relative_path) DESC
+                    LIMIT 1
+                ) AS category_id,
+                (
+                    SELECT fm.author
+                    FROM path_metadata fm
+                    WHERE fm.source_id = i.source_id
+                      AND fm.author IS NOT NULL
+                      AND (fm.relative_path = '' OR i.relative_path LIKE (RTRIM(fm.relative_path, '/') || '/%') OR i.relative_path = fm.relative_path)
+                    ORDER BY LENGTH(fm.relative_path) DESC
+                    LIMIT 1
+                ) AS author,
+                (
+                    SELECT fm.author_url
+                    FROM path_metadata fm
+                    WHERE fm.source_id = i.source_id
+                      AND fm.author_url IS NOT NULL
+                      AND (fm.relative_path = '' OR i.relative_path LIKE (RTRIM(fm.relative_path, '/') || '/%') OR i.relative_path = fm.relative_path)
+                    ORDER BY LENGTH(fm.relative_path) DESC
+                    LIMIT 1
+                ) AS author_url,
                 (
                     SELECT fm.id
                     FROM path_metadata fm
@@ -461,11 +488,11 @@ func (db *DRDatabase) RecalculateEffectiveMetadata(sourceID int) error {
         )
         UPDATE images i
         SET
-            effective_category_id = COALESCE(i.category_override, fm.category_id),
-            effective_author = COALESCE(i.author_override, fm.author),
-            effective_author_url = COALESCE(i.author_url_override, fm.author_url),
+            effective_category_id = COALESCE(i.category_override, closest.category_id),
+            effective_author = COALESCE(i.author_override, closest.author),
+            effective_author_url = COALESCE(i.author_url_override, closest.author_url),
             effective_tags = COALESCE(i.tags_override, fm.tags)
-        FROM closest_paths closest
+        FROM closest_rules closest
         JOIN path_metadata fm ON closest.fm_id = fm.id
         WHERE i.id = closest.image_id
     `
