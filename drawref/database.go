@@ -544,6 +544,10 @@ func (db *DRDatabase) GetSessionImages(categoryID string, tags json.RawMessage, 
     `
 	args := []interface{}{categoryID}
 
+	if cleaned, err := CleanSessionTags(tags); err == nil {
+		tags = cleaned
+	}
+
 	if len(tags) > 0 && string(tags) != "[]" && string(tags) != "{}" && string(tags) != "null" {
 		query += ` AND effective_tags @> $` + strconv.Itoa(len(args)+1) + `::jsonb`
 		args = append(args, string(tags))
@@ -578,6 +582,10 @@ func (db *DRDatabase) GetSessionImages(categoryID string, tags json.RawMessage, 
 func (db *DRDatabase) GetSessionImageCount(categoryID string, tags json.RawMessage, sourceID *int) (int, error) {
 	query := `SELECT COUNT(*) FROM images WHERE effective_category_id = $1`
 	args := []interface{}{categoryID}
+
+	if cleaned, err := CleanSessionTags(tags); err == nil {
+		tags = cleaned
+	}
 
 	if len(tags) > 0 && string(tags) != "[]" && string(tags) != "{}" && string(tags) != "null" {
 		query += ` AND effective_tags @> $` + strconv.Itoa(len(args)+1) + `::jsonb`
