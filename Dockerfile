@@ -1,5 +1,5 @@
 ## build drawref binary
-FROM --platform=$BUILDPLATFORM docker.io/golang:1.23-alpine AS build-env
+FROM --platform=$BUILDPLATFORM docker.io/golang:1.27-alpine AS build-env
 
 WORKDIR /go/src/github.com/drawref/drawref-backend
 
