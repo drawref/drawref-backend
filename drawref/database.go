@@ -535,7 +535,7 @@ func (db *DRDatabase) DeleteImage(id int) error {
 
 // drawing sessions
 
-func (db *DRDatabase) GetSessionImages(categoryID string, tags json.RawMessage, limit int) ([]Image, error) {
+func (db *DRDatabase) GetSessionImages(categoryID string, tags json.RawMessage, sourceID *int, limit int) ([]Image, error) {
 	query := `
         SELECT id, source_id, relative_path, local_path, external_url,
                effective_category_id, effective_author, effective_author_url, effective_tags
@@ -545,8 +545,13 @@ func (db *DRDatabase) GetSessionImages(categoryID string, tags json.RawMessage, 
 	args := []interface{}{categoryID}
 
 	if len(tags) > 0 && string(tags) != "[]" && string(tags) != "{}" && string(tags) != "null" {
-		query += ` AND effective_tags @> $2::jsonb`
+		query += ` AND effective_tags @> $` + strconv.Itoa(len(args)+1) + `::jsonb`
 		args = append(args, string(tags))
+	}
+
+	if sourceID != nil && *sourceID > 0 {
+		query += ` AND source_id = $` + strconv.Itoa(len(args)+1)
+		args = append(args, *sourceID)
 	}
 
 	query += ` ORDER BY RANDOM() LIMIT $` + strconv.Itoa(len(args)+1)
@@ -570,13 +575,18 @@ func (db *DRDatabase) GetSessionImages(categoryID string, tags json.RawMessage, 
 	return images, nil
 }
 
-func (db *DRDatabase) GetSessionImageCount(categoryID string, tags json.RawMessage) (int, error) {
+func (db *DRDatabase) GetSessionImageCount(categoryID string, tags json.RawMessage, sourceID *int) (int, error) {
 	query := `SELECT COUNT(*) FROM images WHERE effective_category_id = $1`
 	args := []interface{}{categoryID}
 
 	if len(tags) > 0 && string(tags) != "[]" && string(tags) != "{}" && string(tags) != "null" {
-		query += ` AND effective_tags @> $2::jsonb`
+		query += ` AND effective_tags @> $` + strconv.Itoa(len(args)+1) + `::jsonb`
 		args = append(args, string(tags))
+	}
+
+	if sourceID != nil && *sourceID > 0 {
+		query += ` AND source_id = $` + strconv.Itoa(len(args)+1)
+		args = append(args, *sourceID)
 	}
 
 	var count int

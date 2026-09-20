@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -14,6 +15,7 @@ type SessionQueryRequest struct {
 	Category string `form:"category" binding:"required"`
 	Tags     string `form:"tags"`
 	Limit    int    `form:"limit"`
+	Source   string `form:"source"`
 }
 
 // handlers
@@ -38,13 +40,24 @@ func getSession(c *gin.Context) {
 		tags = json.RawMessage(req.Tags)
 	}
 
+	// Parse source
+	var sourceID *int
+	if req.Source != "" {
+		id, err := strconv.Atoi(req.Source)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't parse source"})
+			return
+		}
+		sourceID = &id
+	}
+
 	// set default limit if none provided
 	limit := req.Limit
 	if limit <= 0 {
 		limit = 30
 	}
 
-	images, err := TheDb.GetSessionImages(req.Category, tags, limit)
+	images, err := TheDb.GetSessionImages(req.Category, tags, sourceID, limit)
 	if err != nil {
 		fmt.Println("Could not get session images:", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not fetch session images"})
@@ -79,7 +92,18 @@ func getSessionCount(c *gin.Context) {
 		tags = json.RawMessage(req.Tags)
 	}
 
-	count, err := TheDb.GetSessionImageCount(req.Category, tags)
+	// Parse source
+	var sourceID *int
+	if req.Source != "" {
+		id, err := strconv.Atoi(req.Source)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Couldn't parse source"})
+			return
+		}
+		sourceID = &id
+	}
+
+	count, err := TheDb.GetSessionImageCount(req.Category, tags, sourceID)
 	if err != nil {
 		fmt.Println("Could not get session image count:", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not fetch session image count"})
