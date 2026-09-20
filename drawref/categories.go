@@ -29,7 +29,6 @@ type EditCategoryParams struct {
 	DisplayName *string         `json:"display_name"`
 	CoverImage  int             `json:"cover_image"`
 	Tags        json.RawMessage `json:"tags"`
-	Position    int             `json:"position"`
 }
 
 type ReorderCategoriesParams struct {
@@ -126,7 +125,6 @@ func editCategory(c *gin.Context) {
 		DisplayName: params.DisplayName,
 		CoverImage:  params.CoverImage,
 		Tags:        params.Tags,
-		Position:    params.Position,
 	}
 
 	err := TheDb.UpdateCategory(req.Slug, updateCategory)

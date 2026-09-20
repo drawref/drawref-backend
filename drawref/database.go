@@ -122,9 +122,9 @@ func (db *DRDatabase) CreateCategory(c *Category) error {
 func (db *DRDatabase) UpdateCategory(id string, c *Category) error {
 	_, err := db.pool.Exec(context.Background(), `
         UPDATE categories
-        SET display_name = $2, cover_image = $3, tags = $4, position = $5
+        SET display_name = $2, cover_image = $3, tags = $4
         WHERE id = $1
-    `, id, c.DisplayName, c.CoverImage, c.Tags, c.Position)
+    `, id, c.DisplayName, c.CoverImage, c.Tags)
 	return err
 }
 
