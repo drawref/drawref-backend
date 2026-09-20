@@ -40,6 +40,9 @@ func main() {
 		log.Fatal("Opening db failed:", err)
 	}
 
+	// initialize settings
+	drawref.InitSettings()
+
 	// api router
 	router := drawref.GetRouter(nil, strings.Split(config.CorsAllowedFrom, " "))
 	router.Run(config.Address)

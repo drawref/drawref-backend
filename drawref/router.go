@@ -38,6 +38,10 @@ func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.E
 	// system
 	router.GET("/api/system/directories", AdminAuthMiddleware(), autocompleteDirectory)
 
+	// settings
+	router.GET("/api/settings", AdminAuthMiddleware(), getSettings)
+	router.PUT("/api/settings", AdminAuthMiddleware(), updateSettings)
+
 	// samples
 	router.POST("/api/system/load-samples", AdminAuthMiddleware(), loadSamples)
 

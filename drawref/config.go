@@ -18,7 +18,10 @@ type Config struct {
 	DatabaseMigrationsPath string `env:"DATABASE_MIGRATIONS_PATH,default=migrations"`
 	PasetoKey              string `env:"PASETO_KEY"`
 	AdminPass              string `env:"ADMIN_PASS,required"`
+	CachePath              string `env:"CACHE_PATH"`
 }
+
+var AppConfig Config
 
 func LoadConfig() (config Config, err error) {
 	if os.Getenv("APP_ENV") != "production" {
@@ -37,6 +40,8 @@ func LoadConfig() (config Config, err error) {
 		fmt.Println("New random PASETO key:", paseto.NewV4SymmetricKey().ExportHex())
 		return config, errors.New("PASETO_KEY environment variable must be set")
 	}
+
+	AppConfig = config
 
 	return config, nil
 }

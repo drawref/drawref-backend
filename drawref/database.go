@@ -622,3 +622,54 @@ func (db *DRDatabase) GetImagesBySourcePath(sourceID int, pathPrefix string, lim
 
 	return images, nil
 }
+
+// settings
+
+func (db *DRDatabase) GetSettings() (map[string]string, error) {
+	rows, err := db.pool.Query(context.Background(), `
+        SELECT key, value FROM settings
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	settings := make(map[string]string)
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		settings[k] = v
+	}
+	return settings, nil
+}
+
+func (db *DRDatabase) GetSetting(key string, defaultValue string) (string, error) {
+	var val string
+	err := db.pool.QueryRow(context.Background(), `
+        SELECT value FROM settings WHERE key = $1
+    `, key).Scan(&val)
+	if err != nil {
+		return defaultValue, nil
+	}
+	return val, nil
+}
+
+func (db *DRDatabase) SetSetting(key string, value string) error {
+	_, err := db.pool.Exec(context.Background(), `
+        INSERT INTO settings (key, value)
+        VALUES ($1, $2)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    `, key, value)
+	return err
+}
+
+func (db *DRDatabase) UpdateSettings(settings map[string]string) error {
+	for k, v := range settings {
+		if err := db.SetSetting(k, v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
