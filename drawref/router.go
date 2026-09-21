@@ -15,6 +15,15 @@ func ping(c *gin.Context) {
 	c.JSON(http.StatusOK, PingResponse{OK: true})
 }
 
+func SecurityHeadersMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; sandbox;")
+		c.Next()
+	}
+}
+
 func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.Engine) {
 	router = gin.Default()
 
@@ -24,10 +33,11 @@ func GetRouter(trustedProxies []string, corsAllowedFrom []string) (router *gin.E
 	corsConfig.AllowOrigins = corsAllowedFrom
 	corsConfig.AllowHeaders = append(corsConfig.AllowHeaders, "Authorization")
 	router.Use(cors.New(corsConfig))
+	router.Use(SecurityHeadersMiddleware())
 
 	// API
 	router.GET("/api/ping", ping)
-	router.POST("/api/auth", login)
+	router.POST("/api/auth", GlobalLoginRateLimitMiddleware(), PerIPLoginRateLimitMiddleware(), login)
 
 	// serve local images
 	router.GET("/image/:id", serveImage)

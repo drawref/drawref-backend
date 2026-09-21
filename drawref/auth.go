@@ -48,6 +48,21 @@ type LoginResponse struct {
 	Expiry string `json:"exp"`
 }
 
+var bcryptSemaphore = make(chan struct{}, 2) // max 2 concurrent bcrypt checks
+
+var TooManyConcurrentVerificationsError = errors.New("too many concurrent password verifications")
+
+func verifyPassword(hash []byte, password string) error {
+	select {
+	case bcryptSemaphore <- struct{}{}:
+		defer func() { <-bcryptSemaphore }()
+		return bcrypt.CompareHashAndPassword(hash, []byte(password))
+	default:
+		// too many simultaneous verifications in flight, reject immediately
+		return TooManyConcurrentVerificationsError
+	}
+}
+
 func login(c *gin.Context) {
 	var params LoginParams
 	if err := c.ShouldBindJSON(&params); err != nil {
@@ -56,11 +71,19 @@ func login(c *gin.Context) {
 	}
 
 	level := ""
-	if bcrypt.CompareHashAndPassword(TheAuth.adminHash, []byte(params.Password)) == nil {
+	err := verifyPassword(TheAuth.adminHash, params.Password)
+	if err == nil {
 		level = "admin"
 	}
 
-	if level == "" {
+	if err == TooManyConcurrentVerificationsError {
+		// don't log attempt, we're being spammed
+		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "Login temporarily throttled"})
+		return
+	}
+
+	if err != nil {
+		// the login failed, log an attempt for later analysis
 		c.JSON(http.StatusUnauthorized, gin.H{"status": "unauthorized"})
 		LogFailedLoginAttempt(c.ClientIP())
 		return
@@ -118,6 +141,7 @@ func AdminAuthMiddleware() gin.HandlerFunc {
 		if err != nil {
 			fmt.Println("Token doesn't include 'level' claim")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"status": "unauthorized"})
+			return
 		}
 
 		if level == "admin" {

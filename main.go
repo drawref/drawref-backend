@@ -43,6 +43,9 @@ func main() {
 	// initialize settings
 	drawref.InitSettings()
 
+	// start rate limit ejection
+	drawref.InitRateLimitCleanup()
+
 	// api router
 	router := drawref.GetRouter(nil, strings.Split(config.CorsAllowedFrom, " "))
 	router.Run(config.Address)

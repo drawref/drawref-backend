@@ -43,6 +43,21 @@ func GetDirectories(ctx context.Context, sourceType string, rootPath string, pat
 		matchPrefix = filepath.Base(localPrefix)
 	}
 
+	absRoot, err := filepath.Abs(rootPath)
+	if err != nil {
+		return []string{}, nil
+	}
+
+	absSearch, err := filepath.Abs(searchDir)
+	if err != nil {
+		return []string{}, nil
+	}
+
+	// ensure the resolved search directory is within the root path
+	if absSearch != absRoot && !strings.HasPrefix(absSearch, absRoot+string(filepath.Separator)) {
+		return []string{}, nil
+	}
+
 	entries, err := os.ReadDir(searchDir)
 	if err != nil {
 		// if directory doesn't exist or isn't accessible, just return empty
