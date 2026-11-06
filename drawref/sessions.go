@@ -92,6 +92,11 @@ func getSession(c *gin.Context) {
 		limit = 30
 	}
 
+	// max 100 images per session request
+	if limit > 100 {
+		limit = 100
+	}
+
 	images, err := TheDb.GetSessionImages(req.Category, tags, sourceID, limit)
 	if err != nil {
 		fmt.Println("Could not get session images:", err.Error())
